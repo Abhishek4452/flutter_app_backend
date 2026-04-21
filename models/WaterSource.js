@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 
+const objectId = mongoose.Schema.Types.ObjectId;
+
 const waterSourceSchema = new mongoose.Schema(
   {
     // 📍 Basic Info
@@ -59,6 +61,14 @@ const waterSourceSchema = new mongoose.Schema(
     verified: {
       type: Boolean,
       default: false,
+    },
+    createdBy: {
+      type: objectId,
+      ref: "User",
+    },
+    updatedBy: {
+      type: objectId,
+      ref: "User",
     },
   },
   { timestamps: true }

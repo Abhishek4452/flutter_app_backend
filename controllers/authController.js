@@ -10,7 +10,28 @@ const formatUser = (user) => ({
   state: user.state || "",
   district: user.district || "",
   regionCompleted: Boolean(user.regionCompleted),
+  role: user.role || "public",
+  canManageSources: user.role === "government" || Boolean(user.canManageSources),
 });
+
+const governmentEmails = () =>
+  (process.env.GOVERNMENT_EMAILS || process.env.GOV_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+
+const isGovernmentEmail = (email) =>
+  governmentEmails().includes(String(email || "").trim().toLowerCase());
+
+const applyGovernmentRole = async (user) => {
+  if (!user || !isGovernmentEmail(user.email) || user.role === "government") {
+    return user;
+  }
+  user.role = "government";
+  user.canManageSources = true;
+  await user.save();
+  return user;
+};
 
 exports.register = async (req, res) => {
   try {
@@ -25,9 +46,13 @@ exports.register = async (req, res) => {
     if (exists) {
       return res.status(400).json({ error: "Email already registered" });
     }
+    const shouldBootstrapGovernment =
+      isGovernmentEmail(email) || (await User.countDocuments()) === 0;
     const user = await User.create({
       email: email.toLowerCase().trim(),
       password,
+      role: shouldBootstrapGovernment ? "government" : "public",
+      canManageSources: shouldBootstrapGovernment,
     });
     const token = signToken(user._id);
     res.status(201).json({
@@ -51,6 +76,7 @@ exports.login = async (req, res) => {
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
+    await applyGovernmentRole(user);
     const token = signToken(user._id);
     user.password = undefined;
     res.json({
@@ -63,7 +89,37 @@ exports.login = async (req, res) => {
 };
 
 exports.me = async (req, res) => {
+  await applyGovernmentRole(req.user);
   res.json({ user: formatUser(req.user) });
+};
+
+exports.listUsers = async (req, res) => {
+  try {
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
+    res.json({ users: users.map(formatUser) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.updateSourcePermission = async (req, res) => {
+  try {
+    const { canManageSources } = req.body;
+    const user = await User.findById(req.params.userId).select("-password");
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    if (user.role === "government") {
+      return res.status(400).json({
+        error: "Government users always manage sources",
+      });
+    }
+    user.canManageSources = Boolean(canManageSources);
+    await user.save();
+    res.json({ user: formatUser(user) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
 exports.updateRegion = async (req, res) => {

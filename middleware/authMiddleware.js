@@ -19,3 +19,17 @@ exports.protect = async (req, res, next) => {
     return res.status(401).json({ error: "Not authorized" });
   }
 };
+
+exports.requireGovernment = (req, res, next) => {
+  if (req.user?.role === "government") {
+    return next();
+  }
+  return res.status(403).json({ error: "Government access required" });
+};
+
+exports.requireSourceManager = (req, res, next) => {
+  if (req.user?.role === "government" || req.user?.canManageSources) {
+    return next();
+  }
+  return res.status(403).json({ error: "Source management permission required" });
+};

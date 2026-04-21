@@ -30,6 +30,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    role: {
+      type: String,
+      enum: ["public", "government"],
+      default: "public",
+    },
+    canManageSources: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
