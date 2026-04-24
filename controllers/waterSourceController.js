@@ -1,5 +1,8 @@
 const WaterSource = require("../models/WaterSource");
 
+const escapeRegex = (value = "") =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // ➕ Add new water source
 exports.addSource = async (req, res) => {
   try {
@@ -116,7 +119,21 @@ exports.updateSource = async (req, res) => {
 // 📄 Get all sources
 exports.getSources = async (req, res) => {
   try {
-    const sources = await WaterSource.find().sort({ createdAt: -1 });
+    const { state, district } = req.query;
+    const filter = {};
+
+    if (typeof state === "string" && state.trim()) {
+      filter.state = { $regex: `^${escapeRegex(state.trim())}$`, $options: "i" };
+    }
+
+    if (typeof district === "string" && district.trim()) {
+      filter.district = {
+        $regex: `^${escapeRegex(district.trim())}$`,
+        $options: "i",
+      };
+    }
+
+    const sources = await WaterSource.find(filter).sort({ createdAt: -1 });
     res.json(sources);
   } catch (err) {
     res.status(500).json({ error: err.message });
